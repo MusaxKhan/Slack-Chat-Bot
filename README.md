@@ -68,12 +68,12 @@ The bot engages the user through a **structured question queue** with 9 fields o
 | 1 | `problem` | ✅ Yes |
 | 2 | `domain` | ✅ Yes |
 | 3 | `needs` | ✅ Yes |
-| 4 | `stage` | No |
-| 5 | `goal` | No |
-| 6 | `urgency` | No |
-| 7 | `team_size` | No |
-| 8 | `constraints` | No |
-| 9 | `tried_before` | No |
+| 4 | `stage` | Optional |
+| 5 | `goal` | Optional |
+| 6 | `urgency` | Optional |
+| 7 | `team_size` | Optional |
+| 8 | `constraints` | Optional |
+| 9 | `tried_before` | Optional |
 
 **Rules governing the conversation:**
 - Minimum **7 questions** are always asked — the bot never matches prematurely from 2 sentences
