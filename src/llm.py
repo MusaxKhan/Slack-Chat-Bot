@@ -27,33 +27,54 @@ def extract_structured_context(turns):
     history_text = "\n".join([f"{t['role'].upper()}: {t['content']}" for t in turns])
 
     prompt = f"""
-You are a strict information extractor. Extract ONLY what the user has EXPLICITLY stated.
+    You are a strict information extractor. Extract ONLY what the user has EXPLICITLY stated.
 
-CRITICAL RULES:
-- Do NOT infer, assume, or guess any field
-- Do NOT fill a field based on implications or common sense
-- If the user did not clearly state it in their own words, leave it empty
-- "needs" must only contain roles the user specifically asked for — do NOT add roles just because it's an app
-- "urgency", "stage", "goal", "team_size", "constraints", "tried_before" must be EMPTY unless the user said so directly
+    CRITICAL RULES:
+    - Do NOT infer, assume, or guess any field
+    - If the user did not clearly state it in their own words, leave it empty
+    - "needs" must only contain roles the user specifically asked for
+    - "urgency", "stage", "goal", "team_size", "constraints", "tried_before" must be EMPTY unless the user said so directly
 
-Return ONLY a valid JSON object — no explanation, no markdown, no backticks.
+    DOMAIN EXTRACTION RULE — this is critical:
+    - If the user mentions a type of app or product that implies an industry, extract that as domain
+    - Examples:
+        - "gaming app", "puzzle game", "2D shooter" → domain: "gaming"
+        - "fintech app", "payment system" → domain: "fintech"  
+        - "ecommerce store", "online shop" → domain: "ecommerce"
+        - "AI chatbot", "ML model" → domain: "ai"
+        - "SaaS tool", "B2B platform" → domain: "saas"
+        - "HR system", "employee onboarding" → domain: "hr"
+        - "edtech platform", "learning app" → domain: "education"
+    - The domain should be the SHORT industry keyword, not the full description
 
-Fields:
-- "problem": what the user said they want to build or solve (string, "" if not stated)
-- "domain": industry/domain only if user explicitly mentioned it (string, "" if not stated)
-- "needs": ONLY functional roles the user explicitly asked for e.g. ["backend", "design"] (array, [] if not stated)
-- "urgency": "high"/"medium"/"low" only if user mentioned timeline pressure (string, "" if not stated)
-- "stage": "idea"/"mvp"/"scaling"/"production" only if user mentioned it (string, "" if not stated)
-- "team_size": only if user described their team (string, "" if not stated)
-- "constraints": only if user mentioned budget/time/tech constraints (string, "" if not stated)
-- "goal": only if user described a success outcome (string, "" if not stated)
-- "tried_before": only if user mentioned previous attempts (string, "" if not stated)
+    NEEDS EXTRACTION RULE:
+    - If the user says "consultation" or "consultant" → needs: ["consultant"]
+    - If the user says "urgent consultation" → needs: ["consultant"], urgency: "high"
+    - If the user mentions game design, mechanics, levels → needs: ["game design"]
 
-Conversation:
-{history_text}
+    URGENCY RULE:
+    - "urgent", "urgently", "ASAP", "right away" → urgency: "high"
+    - "some flexibility but not that much" → urgency: "medium"
+    - "flexible", "no rush" → urgency: "low"
 
-JSON:
-"""
+    Return ONLY a valid JSON object — no explanation, no markdown, no backticks.
+
+    Fields:
+    - "problem": what the user said they want to build or solve (string, "" if not stated)
+    - "domain": industry keyword extracted using the DOMAIN EXTRACTION RULE above (string, "" if truly not determinable)
+    - "needs": ONLY functional roles the user explicitly asked for (array, [] if not stated)
+    - "urgency": "high"/"medium"/"low" using the URGENCY RULE above (string, "" if not stated)
+    - "stage": "idea"/"mvp"/"scaling"/"production" only if user mentioned it (string, "" if not stated)
+    - "team_size": only if user described their team (string, "" if not stated)
+    - "constraints": only if user mentioned budget/time/tech constraints (string, "" if not stated)
+    - "goal": only if user described a success outcome (string, "" if not stated)
+    - "tried_before": only if user mentioned previous attempts (string, "" if not stated)
+
+    Conversation:
+    {history_text}
+
+    JSON:
+    """
 
     raw = call_llm([{"role": "user", "content": prompt}], temperature=0)
     debug("RAW EXTRACTION", raw)
