@@ -1,7 +1,7 @@
 {
   "display_information": {
     "name": "Smart Connector Bot",
-    "description": "Intelligent co-pilot for surfacing the right people to solve a problem",
+    "description": "AI co-pilot that identifies and connects you with the right people to solve your problem",
     "background_color": "#1a1a2e"
   },
   "features": {
@@ -14,13 +14,14 @@
     "scopes": {
       "bot": [
         "app_mentions:read",
-        "chat:write"
+        "chat:write",
+        "chat:write.public"
       ]
     }
   },
   "settings": {
     "event_subscriptions": {
-      "request_url": "https://your-ngrok-url/slack/events",
+      "request_url": "",
       "bot_events": [
         "app_mention"
       ]
