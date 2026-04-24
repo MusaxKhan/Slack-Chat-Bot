@@ -23,6 +23,28 @@ def handle_mention(event, say):
 
     debug("USER INPUT", f"user={user_id} | text={text}")
 
+    # =========================
+    # RESTART HANDLER
+    # =========================
+    restart_commands = ["restart", "start over", "reset", "begin again"]
+
+    if any(cmd in text.lower() for cmd in restart_commands):
+        USER_STATE[user_id] = {
+            "turns": [],
+            "structured": {},
+            "phase": "gathering",
+            "asked_fields": set(),
+            "questions_asked": 0
+        }
+
+        say(
+            ":arrows_counterclockwise: Starting fresh.\n\n"
+            "Tell me what you're trying to build or solve — "
+            "I'll find the right people in your network to help.\n\n"
+            "_What's the challenge you're working on?_"
+        )
+        return
+
     is_new_session = user_id not in USER_STATE or USER_STATE[user_id]["phase"] == "done"
 
     if is_new_session:
