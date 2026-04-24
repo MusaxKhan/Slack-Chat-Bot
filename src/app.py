@@ -107,5 +107,5 @@ def slack_events():
 
 
 if __name__ == "__main__":
-    print("🚀 Smart Connector Co-pilot running on port 3000...")
+    print("Smart Connector Co-pilot running on port 3000...")
     flask_app.run(port=3000, debug=True)
