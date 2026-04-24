@@ -1,6 +1,4 @@
 # Smart Connector Co-pilot — Slack Bot
-> A Slack-based intelligent agent that surfaces the right people to solve a problem through structured conversation and rule-based expert matching.
-
 ## Project Structure
 
 ```
@@ -17,7 +15,9 @@ smart-connector-copilot/
 ├── database/
 │   └── seed.js             # MongoDB seed script — populates the people collection
 │
-├── .env                    # Environment variables (not committed)
+├── manifest.json           # Slack app manifest — install bot into any workspace
+├── .env.example            # Template for required environment variables
+├── .gitignore
 ├── requirements.txt        # Python dependencies
 └── README.md
 ```
@@ -27,7 +27,7 @@ smart-connector-copilot/
 ## Architecture Overview
 
 ```
-User (@mentions bot)
+User (@mentions bot in Slack)
         │
         ▼
   ┌─────────────┐
@@ -37,8 +37,8 @@ User (@mentions bot)
          ▼
   ┌─────────────┐
   │   llm.py    │  Groq (LLaMA 3.1) extracts structured fields from conversation
-  └──────┬──────┘     — problem, domain, needs, stage, urgency, goal, team_size,
-         │               constraints, tried_before
+  └──────┬──────┘  — problem, domain, needs, stage, urgency, goal, team_size,
+         │            constraints, tried_before
          ▼
   ┌──────────────────┐
   │ conversation.py  │  Rules engine decides: do we have enough context?
@@ -52,7 +52,7 @@ User (@mentions bot)
          ▼
   ┌──────────────┐
   │ formatter.py │  Renders two-section Slack message:
-  └──────────────┘   Domain Experts  +   Supporting Matches
+  └──────────────┘  🎯 Domain Experts  +  🤝 Supporting Matches
 ```
 
 ---
@@ -68,12 +68,12 @@ The bot engages the user through a **structured question queue** with 9 fields o
 | 1 | `problem` | ✅ Yes |
 | 2 | `domain` | ✅ Yes |
 | 3 | `needs` | ✅ Yes |
-| 4 | `stage` | Optional |
-| 5 | `goal` | Optional |
-| 6 | `urgency` | Optional |
-| 7 | `team_size` | Optional |
-| 8 | `constraints` | Optional |
-| 9 | `tried_before` | Optional |
+| 4 | `stage` | No |
+| 5 | `goal` | No |
+| 6 | `urgency` | No |
+| 7 | `team_size` | No |
+| 8 | `constraints` | No |
+| 9 | `tried_before` | No |
 
 **Rules governing the conversation:**
 - Minimum **7 questions** are always asked — the bot never matches prematurely from 2 sentences
@@ -150,21 +150,17 @@ cd smart-connector-copilot
 pip install -r requirements.txt
 ```
 
-**`requirements.txt`:**
-```
-slack-bolt
-flask
-pymongo
-groq
-python-dotenv
-```
-
 ---
 
 ### 2. Environment Variables
 
-Create a `.env` file in the root:
+Copy the example file and fill in your credentials:
 
+```bash
+cp .env.example .env
+```
+
+`.env.example`:
 ```env
 SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_SIGNING_SECRET=your-signing-secret
@@ -172,18 +168,31 @@ GROQ_API_KEY=your-groq-api-key
 MONGO_URI=mongodb://localhost:27017
 ```
 
-To get your Slack credentials:
-1. Go to [api.slack.com/apps](https://api.slack.com/apps) → Create New App → From Manifest
-2. Under **OAuth & Permissions** → copy `Bot User OAuth Token` → `SLACK_BOT_TOKEN`
-3. Under **Basic Information** → copy `Signing Secret` → `SLACK_SIGNING_SECRET`
-4. Add Bot Token Scopes: `app_mentions:read`, `chat:write`
-5. Enable **Event Subscriptions** → Subscribe to `app_mention`
+---
+
+### 3. Install the Slack App via Manifest
+
+The `manifest.json` file in the root of this repo defines the entire Slack app configuration — scopes, event subscriptions, bot name — so you don't have to configure anything manually in the Slack UI.
+
+**Steps to install:**
+
+1. Go to [api.slack.com/apps](https://api.slack.com/apps)
+2. Click **Create New App**
+3. Select **From a manifest**
+4. Choose your target Slack workspace and click **Next**
+5. Paste the contents of `manifest.json` into the JSON tab and click **Next**
+6. Review the summary and click **Create**
+7. On the app page, go to **OAuth & Permissions** → click **Install to Workspace** → **Allow**
+8. Copy the **Bot User OAuth Token** (`xoxb-...`) → paste into `.env` as `SLACK_BOT_TOKEN`
+9. Go to **Basic Information** → copy **Signing Secret** → paste into `.env` as `SLACK_SIGNING_SECRET`
+
+> **Note:** The `manifest.json` contains a placeholder `request_url`. You must update it with your live ngrok URL before Slack will verify the endpoint. See Step 6 below.
 
 ---
 
-### 3. Database Setup
+### 4. Database Setup
 
-Start MongoDB (run this in its own terminal):
+Start MongoDB in its own terminal:
 
 ```bash
 mongod --dbpath "C:\data\db"
@@ -208,9 +217,25 @@ This connects to `mongodb://localhost:27017`, creates the `slack_co_pilot` datab
 
 ---
 
-### 4. Running the Full Stack
+### 5. Why ngrok?
 
-These three processes must run **in parallel** — open three separate terminals:
+Slack's event system works by sending an HTTP POST request to a **public HTTPS URL** every time a user mentions the bot. This means your bot server must be reachable from the internet — not just on `localhost`.
+
+During development, the bot runs on `localhost:3000` which is only accessible on your own machine. **ngrok solves this** by creating a secure tunnel from a temporary public `https://` URL directly to your local server:
+
+```
+Slack ──► https://abc123.ngrok-free.app/slack/events ──► localhost:3000
+```
+
+This is the industry-standard approach for local Slack bot development — no hosting costs, no cloud deployment required during the build and demo phase. In a production deployment, you would replace ngrok with a real hosted server (e.g. Railway, Render, or AWS EC2) and point the Slack event URL there permanently.
+
+> ⚠️ **ngrok limitation:** Every time you restart ngrok on the free tier, you get a new random URL. You must update the Slack Event Subscriptions Request URL each time. If you have a paid ngrok account, you can configure a fixed subdomain to avoid this.
+
+---
+
+### 6. Running the Full Stack
+
+These three processes must run **in parallel** — open three separate terminals and run one command in each:
 
 **Terminal 1 — MongoDB**
 ```bash
@@ -228,17 +253,26 @@ python app.py
 ngrok http 3000
 ```
 
-Once ngrok is running, copy the `https://` forwarding URL and paste it into your Slack app:
+Once ngrok starts, it will display something like:
 
-- Go to **Event Subscriptions** → Request URL → `https://your-ngrok-url/slack/events`
-- Slack will send a challenge request — the bot must be running to verify it
+```
+Forwarding    https://abc123.ngrok-free.app -> http://localhost:3000
+```
+
+Copy the `https://` forwarding URL and update Slack:
+
+1. Go to your Slack app at [api.slack.com/apps](https://api.slack.com/apps)
+2. Navigate to **Event Subscriptions**
+3. Set the Request URL to: `https://abc123.ngrok-free.app/slack/events`
+4. Slack will immediately send a verification challenge — your bot must already be running (Terminal 2) to pass it
+5. Once verified, click **Save Changes**
 
 ---
 
-### 5. Test the Bot
+### 7. Test the Bot
 
-1. Invite the bot to a channel: `/invite @YourBotName`
-2. Mention it: `@YourBotName I want to build something`
+1. Invite the bot to a channel: `/invite @SmartConnectorBot`
+2. Mention it: `@SmartConnectorBot I want to build something`
 3. Answer its questions — it will ask 7–10 before returning matches
 4. Mention it again after it finishes to start a fresh session
 
@@ -264,7 +298,10 @@ The current question queue is linear. A slot-filling approach would let the bot 
 ### 6. Team-Aware Matching
 Right now the bot recommends individuals. A better version would detect when the user needs a multi-disciplinary team and surface a *set* of complementary people — e.g. "Here's a backend engineer, a designer, and a growth person who have worked together before" — using the `connections` field to prioritize people who already know each other.
 
-### 7. Slack DM Support
+### 7. Replace ngrok with a Hosted Deployment
+ngrok works well for development and demos but requires manually updating the Slack event URL on every session restart (free tier). A production version would deploy the Flask server to Railway, Render, or AWS and point Slack to a permanent URL.
+
+### 8. Slack DM Support
 Currently only works via `@mention` in channels. Adding DM support would make the workflow more natural — users could have a private conversation with the bot without broadcasting their problem to a channel.
 
 ---
@@ -279,8 +316,16 @@ LLM-based matching is a black box — you can't explain *why* someone was ranked
 
 LLMs are excellent at understanding natural language and generating natural language — that's what they're used for here (extracting structured fields from freeform text, and phrasing questions conversationally). They're poor at consistent, auditable ranking logic. The split keeps each tool doing what it's actually good at.
 
+**Why ngrok for local development?**
+
+Slack requires a publicly accessible HTTPS endpoint to deliver events to your bot. Since the bot runs locally during development, ngrok bridges that gap by tunneling Slack's requests to `localhost:3000`. It's the standard approach for local Slack bot development — no hosting costs, no deployment overhead during the build phase.
+
 **Why the two-tier output?**
 
 A generic backend engineer with many keyword matches was outranking domain specialists in early testing. The two-tier design ensures that someone who actually works in gaming always appears before someone who merely has transferable skills — which is the correct prioritization for a network connector tool.
+
+**Why MongoDB?**
+
+The people dataset is document-structured — nested arrays of skills, domains, experience entries, and connections — which maps naturally to MongoDB's document model. It also makes the seed script simple and the profile schema flexible: adding new fields to a person's profile requires no schema migration.
 
 ---
