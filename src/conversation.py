@@ -79,19 +79,31 @@ def count_filled_enrichment(structured):
     return count
 
 
+# In conversation.py
+
 def has_enough_context(structured, questions_asked):
     if questions_asked < MIN_QUESTIONS:
         return False
     if questions_asked >= MAX_QUESTIONS:
         return True
+    
+    if not structured.get("domain", "").strip():
+        return False
+
+    # Check remaining required fields
     for field in REQUIRED_FIELDS:
         val = structured.get(field)
         if not val or (isinstance(val, list) and len(val) == 0) or (isinstance(val, str) and not val.strip()):
             return False
+
     return count_filled_enrichment(structured) >= 4
 
 
 def get_next_question_field(structured, asked_fields):
+    domain_val = structured.get("domain", "").strip()
+    if not domain_val and "domain" not in asked_fields:
+        return "domain", "What industry or domain is this for — e.g. gaming, fintech, SaaS, ecommerce, AI, marketing?"
+
     for q in QUESTION_QUEUE:
         if q["field"] not in asked_fields and not q["check"](structured):
             return q["field"], q["ask"]
